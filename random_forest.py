@@ -20,7 +20,7 @@ def best_split(ds, n_attrib):
 				res_index, res_value, res_score, res_groups = index, row[index], gini_ind, ds_groups
 	return {'index':res_index, 'value':res_value, 'groups':res_groups}
 
-# Gini index is then calculated for the partitioned ds
+# Gini index is then calculated for the partitioned our ds
 def gini_idx(groups, classes):
 	# number of samples at the pont of split is obtained below
 	n_samples = float(sum([len(group) for group in groups]))
