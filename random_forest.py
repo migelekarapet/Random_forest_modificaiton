@@ -53,7 +53,11 @@ def split_ds(index, value, dataset):
 # step 2. randomly select a subset of variables(columns) at each step; and create a decision tree using bootstraped dataset from step 1
 # we are considering only fixed limited number of variables at each step. an explanation will follow later on how to determine 
 # optimal # of variables
-# now, say we have 4 column variables and our fixed number is set to 2; we select 2 random columns and see which ones are best 
+# now, say we have 4 column variables and our fixed number is set to 2 
+#(number of attributes to be considered for the split is limited to the square root of the number of input features); 
+# as a result  of this approachwe obtain uncorrelated trees and the final  predictions are more diverse 
+# Hence, we get a combined prediction most of times has better performance as opposed to  single tree (or bagging).
+#we select 2 random columns and see which ones are best 
 # candidates for root node. assume one of them did the best job separating samples; we logically grey out this variable column
 # and then focus on the remaining 3 variable columns; note - the root node is already selected and imagine for simplicity
 # thatwe have ledt and right child nodes non empty. Now say we are at left child node. we then randomly select 
