@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
-from csv import reader
+from random import seed
 from random import randrange
+from csv import reader
+from math import sqrt
 
 # the best performing split point is selected
 def best_split(ds, n_attrib):
@@ -83,7 +85,7 @@ def split_ds(index, value, dataset):
 # those frequencies and derive conclusions as to how correct our RF does its job (out-of-bag error is the proportion of inaccurately classified)
 
 
-# Create a random subsample from the dataset with replacement
+# generate random subset from ds (with repl.)
 def subsets(ds, prop):
 	observ = list()
 	n_observ = round(len(ds) * prop)
@@ -92,4 +94,161 @@ def subsets(ds, prop):
 		observ.append(ds[index])
 	return observ
 
+# a conversion of string column to float is performed below
+def str_column_to_float(ds, column):
+	for row in ds:
+		row[column] = float(row[column].strip())
+ 
+# a conversion of string column to int is performed below
+def str_column_to_int(ds, column):
+	values_cls = [row[column] for row in ds]
+	unique = set(values_cls)
+	lookup = dict()
+	for i, value in enumerate(unique):
+		lookup[value] = i
+	for row in ds:
+		row[column] = lookup[row[column]]
+	return lookup
+ 
+# ds is split k times (i.e. into k folds)
+def split_cval(ds, n_times):
+    ds_copy = list(ds)
+    ds_split = list()
+    times_size = int(len(ds) / n_times)
+    for i in range(n_times):
+        times = list()
+        while len(times) < times_size:
+            ind = randrange(len(ds_copy))
+            times.append(ds_copy.pop(ind))
+            ds_split.append(times)
+    return ds_split
+ 
+# acc %
+def acc_metric(act, predic):
+    #counter is set to zero first time
+	correct = 0
+	for i in range(len(act)):
+		if act[i] == predic[i]:
+			correct += 1
+    #the right proportion is returned
+	return correct / float(len(act)) * 100.0
+ 
+# we use k-times cross validation split below
+def eval(ds, algo, n_times, *args):
+	timess = split_cval(ds, n_times)
+	scr = list()
+	for times in timess:
+		train_set = list(timess)
+		train_set.remove(times)
+		train_set = sum(train_set, [])
+		test_set = list()
+		for rw in times:
+			row_copy = list(rw)
+			test_set.append(row_copy)
+			row_copy[-1] = None
+		m_predic = algo(train_set, test_set, *args)
+		m_act = [rw[-1] for rw in times]
+		acc = acc_metric(m_act, m_predic)
+		scr.append(acc)
+	return scr
 
+
+def csv_load(filename):
+	ds = list()
+	with open(filename, 'r') as file:
+		csv_rd = reader(file)
+		for row in csv_rd:
+			if not row:
+				continue
+			ds.append(row)
+	return ds
+# terminating node value creaiton
+def terminating(group):
+	results = [row[-1] for row in group]
+	return max(set(results), key=results.count)
+
+# make terminating or creation of node's child split
+def split_node(node, depth_max, size_min, n_attrib,  depth):
+	left, right = node['groups']
+	del(node['groups'])
+	# emptyness check
+	if not left or not right:
+		node['left'] = node['right'] = terminating(left + right)
+		return
+	# verifying if we reached max depth
+	if depth >= depth_max:
+		node['left'], node['right'] = terminating(left), terminating(right)
+		return
+	# node's left child
+	if len(left) <= size_min:
+		node['left'] = terminating(left)
+	else:
+		node['left'] = best_split(left)
+		split_node(node['left'], depth_max, size_min, n_attrib, depth+1)
+	# node's right child
+	if len(right) <= size_min:
+		node['right'] = terminating(right)
+	else:
+		node['right'] = best_split(right)
+		split_node(node['right'], depth_max, size_min, n_attrib, depth+1)
+ 
+
+
+# decision tree construciton
+def dec_tree_construct(trn, depth_max, size_min, n_attrib):
+	root = best_split(trn, n_attrib)
+	split_node(root, depth_max, size_min, n_attrib, 1)
+	return root
+
+#  we'll now perform a prediction for decision tree's most likely node 
+def node_prediction(nd, row):
+	if row[nd['index']] < nd['value']:
+		if isinstance(nd['left'], dict):
+			return node_prediction(nd['left'], row)
+		else:
+			return nd['left']
+	else:
+		if isinstance(nd['right'], dict):
+			return node_prediction(nd['right'], row)
+		else:
+			return nd['right']
+
+# Using list of baggd treed we'll make a predict
+def pred_bagg(trs, rw):
+	predic = [node_prediction(tr, rw) for tr in trs]
+	return max(set(predic), key=predic.count)
+
+# RF
+def r_f(trn, tst, depth_max, size_min, subset_len, n_trs, n_attrib):
+	trs = list()
+	for i in range(n_trs):
+		subset = subsets(trn, subset_len)
+		tr = dec_tree_construct(subset, depth_max, size_min, n_attrib)
+		trs.append(tr)
+	pred = [pred_bagg(trs, rw) for rw in tst]
+	return(pred)
+ 
+
+
+# RF building
+seed(71)
+# loading the data
+filename = 'default of credit card clients.csv'
+ds = csv_load(filename)
+
+
+for i in range(0, len(ds[0])-1):
+	str_column_to_float(ds, i)
+# convert class column to integers
+str_column_to_int(ds, len(ds[0])-1)
+# evalalgorithm
+n_folds = 5
+depth_max = 10
+size_min = 1
+sample_size = 1.0
+n_attrib = int(sqrt(len(ds[0])-1))
+for n_trees in [1, 5, 10]:
+	scores = eval(ds, r_f, n_folds, depth_max, size_min, sample_size, n_trees, n_attrib)
+	print('Trees: %d' % n_trees)
+	print('Scores: %s' % scores)
+	print('Mean Accuracy: %.3f%%' % (sum(scores)/float(len(scores))))
