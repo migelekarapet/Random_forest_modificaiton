@@ -1,5 +1,5 @@
-###Random_forest_modificaiton
-###implementation of Random forest modification
+###Random forest modificaiton explanation
+
  step 1. randomly select observations from dataset (note repeated observations are allowed)
  step 2. randomly select a subset of variables(columns) at each step; and create a decision tree using bootstraped dataset from step 1
  we are considering only fixed limited number of variables at each step. an explanation will follow later on how to determine 
