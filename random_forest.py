@@ -1,16 +1,21 @@
 # -*- coding: utf-8 -*-
+import random
 from random import seed
 from random import randrange
 from csv import reader
 from math import sqrt
+import pandas as pd
 
 # the best performing split point is selected
 def best_split(ds, n_attrib):
     # run over the possible values that the class variable entails
+	# watch 'values_cls' variable in stack to have better pitcure
+	# note set() only stores a value once even if it is inserted more than once
+	# thus, we have unique class values only in set (2 elements basically in our case)
 	values_cls = list(set(row[-1] for row in ds))
 	res_index, res_value, res_score, res_groups = 1111, 1111, 1111, None
 	attrib = list()
-	while len(attrib) < n_attrib:
+	while len(attrib) < n_attrib: # ds[0] - number of columns in dataset
 		index = randrange(len(ds[0])-1)
 		if index not in attrib:
 			attrib.append(index)
@@ -99,16 +104,6 @@ def str_column_to_float(ds, column):
 	for row in ds:
 		row[column] = float(row[column].strip())
  
-# a conversion of string column to int is performed below
-def str_column_to_int(ds, column):
-	values_cls = [row[column] for row in ds]
-	unique = set(values_cls)
-	lookup = dict()
-	for i, value in enumerate(unique):
-		lookup[value] = i
-	for row in ds:
-		row[column] = lookup[row[column]]
-	return lookup
  
 # ds is split k times (i.e. into k folds)
 def split_cval(ds, n_times):
@@ -133,7 +128,11 @@ def acc_metric(act, predic):
     #the right proportion is returned
 	return correct / float(len(act)) * 100.0
  
-# we use k-times cross validation split below
+# we use k-times cross validation split below to evaluate r_f with different params
+# *args are passed to algo - which has partially implied list of arguments for 'eval'
+# purspoe- there might be other methods with similar list of argumetns that 
+# we would like to compare to random forest. Python provides this flexibility 
+
 def eval(ds, algo, n_times, *args):
 	timess = split_cval(ds, n_times)
 	scr = list()
@@ -146,7 +145,10 @@ def eval(ds, algo, n_times, *args):
 			row_copy = list(rw)
 			test_set.append(row_copy)
 			row_copy[-1] = None
+        # in our case 'algo' is r_f function call implemented below
+        #number of predicted values matching row count for test set are below
 		m_predic = algo(train_set, test_set, *args)
+         #number of actual values matching row count for test set are below
 		m_act = [rw[-1] for rw in times]
 		acc = acc_metric(m_act, m_predic)
 		scr.append(acc)
@@ -216,15 +218,24 @@ def node_prediction(nd, row):
 # Using list of baggd treed we'll make a predict
 def pred_bagg(trs, rw):
 	predic = [node_prediction(tr, rw) for tr in trs]
+    # returns most commonly appearing frequency of prediction for given row 
+    #across all trees
 	return max(set(predic), key=predic.count)
 
 # RF
 def r_f(trn, tst, depth_max, size_min, subset_len, n_trs, n_attrib):
 	trs = list()
 	for i in range(n_trs):
+        # subset len is initialized in sample_size=1.0 below
 		subset = subsets(trn, subset_len)
+        # a single tree node is returned below and then appended to list object
 		tr = dec_tree_construct(subset, depth_max, size_min, n_attrib)
 		trs.append(tr)
+    # for every row in evaluation pred_bagg returns most commonly occuring 
+    # result collected accross all the constructed trees.
+    # 'pred' variable below corresponds to list of those predicitons
+    #  size of that list is matching the number of rows in test set
+    # 1-to-1 matching (row -> prediciton) is implied
 	pred = [pred_bagg(trs, rw) for rw in tst]
 	return(pred)
  
@@ -234,13 +245,15 @@ def r_f(trn, tst, depth_max, size_min, subset_len, n_trs, n_attrib):
 seed(71)
 # loading the data
 filename = 'default of credit card clients.csv'
+# last column in our dataset 'default payment next month' is taking binary
+# values, 1 - indicating default on payment and 0 - no default
 ds = csv_load(filename)
+type(ds)
 
-
+# ds[0] - number of columns in dataset
 for i in range(0, len(ds[0])-1):
 	str_column_to_float(ds, i)
-# convert class column to integers
-str_column_to_int(ds, len(ds[0])-1)
+
 # evalalgorithm
 n_folds = 5
 depth_max = 10
@@ -248,6 +261,7 @@ size_min = 1
 sample_size = 1.0
 n_attrib = int(sqrt(len(ds[0])-1))
 for n_trees in [1, 5, 10]:
+    #modify k-fold split using more efficient sklearn.model_selection import KFold
 	scores = eval(ds, r_f, n_folds, depth_max, size_min, sample_size, n_trees, n_attrib)
 	print('Trees: %d' % n_trees)
 	print('Scores: %s' % scores)
